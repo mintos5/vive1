@@ -1,7 +1,7 @@
 ﻿<!DOCTYPE html>
 <html lang="en">
 	<head>
-		<title>three.js webvr - htc vive  - camera rig</title>
+		<title>three.js webvr - htc vive - dragging</title>
 		<meta charset="utf-8">
 		<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
 		<style>
@@ -19,7 +19,7 @@
 	</head>
 	<body>
 
-		<script src="build/three.js"></script>
+		<script src="../build/three.js"></script>
 
 		<script src="js/vr/ViveController.js"></script>
 		<script src="js/vr/WebVR.js"></script>
@@ -36,20 +36,14 @@
 
 			//
 
-			var clock = new THREE.Clock();
-
 			var container;
-			var cameraRig, camera, scene, renderer;
+			var camera, scene, renderer;
 			var controller1, controller2;
-			var scale = 1;
-			var dragging = {
-				left: false,
-				right: false
-			};
-			var dragStartPointLeft = new THREE.Vector3();
-			var dragStartPointRight = new THREE.Vector3();
 
-			var room;
+			var raycaster, intersected = [];
+			var tempMatrix = new THREE.Matrix4();
+
+			var group;
 
 			init();
 			animate();
@@ -68,81 +62,77 @@
 				container.appendChild( info );
 
 				scene = new THREE.Scene();
-				scene.background = new THREE.Color( 0x505050 );
+				scene.background = new THREE.Color( 0x808080 );
 
-				camera = new THREE.PerspectiveCamera( 70, window.innerWidth / window.innerHeight, 0.01, 1000 );
-				cameraRig = new THREE.Group();
-				cameraRig.add( camera );
-				scene.add( cameraRig );
+				camera = new THREE.PerspectiveCamera( 70, window.innerWidth / window.innerHeight, 0.1, 10 );
+				scene.add( camera );
 
-				room = new THREE.Mesh(
-					new THREE.BoxGeometry( 6, 6, 6, 8, 8, 8 ),
-					new THREE.MeshBasicMaterial( { color: 0x404040, wireframe: true } )
-				);
-				room.position.y = 3;
-				scene.add( room );
+				var geometry = new THREE.PlaneGeometry( 4, 4 );
+				var material = new THREE.MeshStandardMaterial( {
+					color: 0xeeeeee,
+					roughness: 1.0,
+					metalness: 0.0
+				} );
+				var floor = new THREE.Mesh( geometry, material );
+				floor.rotation.x = - Math.PI / 2;
+				floor.receiveShadow = true;
+				scene.add( floor );
 
-				scene.add( new THREE.HemisphereLight( 0x606060, 0x404040 ) );
+				scene.add( new THREE.HemisphereLight( 0x808080, 0x606060 ) );
 
 				var light = new THREE.DirectionalLight( 0xffffff );
-				light.position.set( 1, 1, 1 ).normalize();
+				light.position.set( 0, 6, 0 );
+				light.castShadow = true;
+				light.shadow.camera.top = 2;
+				light.shadow.camera.bottom = -2;
+				light.shadow.camera.right = 2;
+				light.shadow.camera.left = -2;
+				light.shadow.mapSize.set( 4096, 4096 );
 				scene.add( light );
 
-				var geometry = new THREE.BoxGeometry( 0.2, 0.2, 0.2 );
+				group = new THREE.Group();
+				scene.add( group );
 
-				for ( var i = 0; i < 10; i ++ ) {
+				var geometries = [
+					new THREE.BoxGeometry( 0.2, 0.2, 0.2 ),
+					new THREE.ConeGeometry( 0.2, 0.2, 64 ),
+					new THREE.CylinderGeometry( 0.2, 0.2, 0.2, 64 ),
+					new THREE.IcosahedronGeometry( 0.2, 3 ),
+					new THREE.TorusGeometry( 0.2, 0.04, 64, 32 )
+				];
 
-					var object = new THREE.Mesh( geometry, new THREE.MeshLambertMaterial( { color: Math.random() * 0xffffff } ) );
+				for ( var i = 0; i < 40; i ++ ) {
+
+					var geometry = geometries[ Math.floor( Math.random() * geometries.length ) ];
+					var material = new THREE.MeshStandardMaterial( {
+						color: Math.random() * 0xffffff,
+						roughness: 0.7,
+						metalness: 0.0
+					} );
+
+					var object = new THREE.Mesh( geometry, material );
 
 					object.position.x = Math.random() * 4 - 2;
-					object.position.y = Math.random() * 4 - 2;
+					object.position.y = Math.random() * 2;
 					object.position.z = Math.random() * 4 - 2;
 
 					object.rotation.x = Math.random() * 2 * Math.PI;
 					object.rotation.y = Math.random() * 2 * Math.PI;
 					object.rotation.z = Math.random() * 2 * Math.PI;
 
-					object.scale.x = Math.random() + 0.5;
-					object.scale.y = Math.random() + 0.5;
-					object.scale.z = Math.random() + 0.5;
+					object.scale.setScalar( Math.random() + 0.5 );
 
-					object.userData.velocity = new THREE.Vector3();
-					object.userData.velocity.x = Math.random() * 0.01 - 0.005;
-					object.userData.velocity.y = Math.random() * 0.01 - 0.005;
-					object.userData.velocity.z = Math.random() * 0.01 - 0.005;
+					object.castShadow = true;
+					object.receiveShadow = true;
 
-					room.add( object );
+					group.add( object );
 
 				}
 
+				//added
+
 				var material = new THREE.MeshStandardMaterial();
-
-                var loader = new THREE.OBJLoader();
-                loader.setPath( 'models/obj/table/' );
-                loader.load( 'desk.obj', function ( group ) {
-
-                    var material = new THREE.MeshLambertMaterial( { color: Math.random() * 0xffffff } );
-
-                    group.traverse( function ( child ) {
-
-                        if ( child instanceof THREE.Mesh ) {
-
-                            child.material = material;
-
-                        }
-
-                    } );
-
-                    group.position.y = - 3;
-                    //group.rotation.y = - Math.PI / 2;
-                    //group.rotation.x =  Math.PI / 2;
-                    group.scale.x = 0.2;
-                    group.scale.y = 0.2;
-                    group.scale.z = 0.2;
-                    room.add( group );
-
-                } );
-
+				
 				var loader = new THREE.OBJLoader();
 				loader.setPath( 'models/obj/cerberus/' );
 				loader.load( 'Cerberus.obj', function ( group ) {
@@ -175,25 +165,23 @@
 
 					} );
 
-					//group.position.y = - 2;
+					group.position.y = 1;
 					group.rotation.y = - Math.PI / 2;
-					room.add( group );
+					group.scale.x = 0.2;
+                    group.scale.y = 0.2;
+                    group.scale.z = 0.2;
+					scene.add( group );
 
 				} );
-
-				var loader = new THREE.CubeTextureLoader();
-				loader.setPath( 'textures/cube/pisa/' );
-				material.envMap = loader.load( [
-					"px.png", "nx.png",
-					"py.png", "ny.png",
-					"pz.png", "nz.png"
-				] );
 
 				//
 
 				renderer = new THREE.WebGLRenderer( { antialias: true } );
 				renderer.setPixelRatio( window.devicePixelRatio );
 				renderer.setSize( window.innerWidth, window.innerHeight );
+				renderer.shadowMap.enabled = true;
+				renderer.gammaInput = true;
+				renderer.gammaOutput = true;
 				container.appendChild( renderer.domElement );
 
 				renderer.vr.enabled = true;
@@ -205,13 +193,13 @@
 				controller1.standingMatrix = renderer.vr.getStandingMatrix();
 				controller1.addEventListener( 'triggerdown', onTriggerDown );
 				controller1.addEventListener( 'triggerup', onTriggerUp );
-				cameraRig.add( controller1 );
+				scene.add( controller1 );
 
 				controller2 = new THREE.ViveController( 1 );
 				controller2.standingMatrix = renderer.vr.getStandingMatrix();
 				controller2.addEventListener( 'triggerdown', onTriggerDown );
 				controller2.addEventListener( 'triggerup', onTriggerUp );
-				cameraRig.add( controller2 );
+				scene.add( controller2 );
 
 				var loader = new THREE.OBJLoader();
 				loader.setPath( 'models/obj/vive-controller/' );
@@ -228,6 +216,24 @@
 					controller2.add( object.clone() );
 
 				} );
+
+				//
+
+				var geometry = new THREE.Geometry();
+				geometry.vertices.push( new THREE.Vector3( 0, 0, 0 ) );
+				geometry.vertices.push( new THREE.Vector3( 0, 0, - 1 ) );
+
+				var line = new THREE.Line( geometry );
+				line.name = 'line';
+				line.scale.z = 5;
+
+				controller1.add( line.clone() );
+				controller2.add( line.clone() );
+
+				raycaster = new THREE.Raycaster();
+
+
+				//
 
 				WEBVR.getVRDisplay( function ( display ) {
 
@@ -252,6 +258,98 @@
 
 			}
 
+			function onTriggerDown( event ) {
+
+				var controller = event.target;
+
+				var intersections = getIntersections( controller );
+
+				if ( intersections.length > 0 ) {
+
+					var intersection = intersections[ 0 ];
+
+					tempMatrix.getInverse( controller.matrixWorld );
+
+					var object = intersection.object;
+					object.matrix.premultiply( tempMatrix );
+					object.matrix.decompose( object.position, object.quaternion, object.scale );
+					object.material.emissive.b = 1;
+					controller.add( object );
+
+					controller.userData.selected = object;
+
+				}
+
+			}
+
+			function onTriggerUp( event ) {
+
+				var controller = event.target;
+
+				if ( controller.userData.selected !== undefined ) {
+
+					var object = controller.userData.selected;
+					object.matrix.premultiply( controller.matrixWorld );
+					object.matrix.decompose( object.position, object.quaternion, object.scale );
+					object.material.emissive.b = 0;
+					group.add( object );
+
+					controller.userData.selected = undefined;
+
+				}
+
+
+			}
+
+			function getIntersections( controller ) {
+
+				tempMatrix.identity().extractRotation( controller.matrixWorld );
+
+				raycaster.ray.origin.setFromMatrixPosition( controller.matrixWorld );
+				raycaster.ray.direction.set( 0, 0, -1 ).applyMatrix4( tempMatrix );
+
+				return raycaster.intersectObjects( group.children );
+
+			}
+
+			function intersectObjects( controller ) {
+
+				// Do not highlight when already selected
+
+				if ( controller.userData.selected !== undefined ) return;
+
+				var line = controller.getObjectByName( 'line' );
+				var intersections = getIntersections( controller );
+
+				if ( intersections.length > 0 ) {
+
+					var intersection = intersections[ 0 ];
+
+					var object = intersection.object;
+					object.material.emissive.r = 1;
+					intersected.push( object );
+
+					line.scale.z = intersection.distance;
+
+				} else {
+
+					line.scale.z = 5;
+
+				}
+
+			}
+
+			function cleanIntersected() {
+
+				while ( intersected.length ) {
+
+					var object = intersected.pop();
+					object.material.emissive.r = 0;
+
+				}
+
+			}
+
 			//
 
 			function animate() {
@@ -262,98 +360,16 @@
 
 			function render() {
 
-				var delta = clock.getDelta() * 60;
-
 				controller1.update();
 				controller2.update();
 
-				scaleUpdate();
+				cleanIntersected();
 
-				for ( var i = 0; i < room.children.length; i ++ ) {
-
-					var cube = room.children[ i ];
-
-					if ( cube.geometry instanceof THREE.BoxGeometry === false ) continue;
-
-					// cube.position.add( cube.userData.velocity );
-
-					if ( cube.position.x < - 3 || cube.position.x > 3 ) {
-
-						cube.position.x = THREE.Math.clamp( cube.position.x, - 3, 3 );
-						cube.userData.velocity.x = - cube.userData.velocity.x;
-
-					}
-
-					if ( cube.position.y < - 3 || cube.position.y > 3 ) {
-
-						cube.position.y = THREE.Math.clamp( cube.position.y, - 3, 3 );
-						cube.userData.velocity.y = - cube.userData.velocity.y;
-
-					}
-
-					if ( cube.position.z < - 3 || cube.position.z > 3 ) {
-
-						cube.position.z = THREE.Math.clamp( cube.position.z, - 3, 3 );
-						cube.userData.velocity.z = - cube.userData.velocity.z;
-
-					}
-
-					cube.rotation.x += 0.01 * delta;
-
-				}
+				intersectObjects( controller1 );
+				intersectObjects( controller2 );
 
 				renderer.render( scene, camera );
 
-			}
-
-			var previousControllersSegment = new THREE.Line3();
-			var currentControllersSegment = new THREE.Line3();
-			var deltaPreviousSegment = new THREE.Vector3();
-			var deltaCurrentSegment = new THREE.Vector3();
-			var currentWorldPositionLeft = new THREE.Vector3();
-			var currentWorldPositionRight = new THREE.Vector3();
-
-			function scaleUpdate () {
-				if ( !dragging.left || !dragging.right ) {
-					return false;
-				}
-
-				currentWorldPositionLeft.setFromMatrixPosition( controller1.matrixWorld );
-				currentWorldPositionRight.setFromMatrixPosition( controller2.matrixWorld );
-
-				previousControllersSegment.set( dragStartPointLeft, dragStartPointRight );
-				currentControllersSegment.set( currentWorldPositionLeft, currentWorldPositionRight );
-
-				var dist = ( previousControllersSegment.distance() - currentControllersSegment.distance() );
-
-				scale += dist;
-
-				cameraRig.scale.set( scale, scale, scale );
-
-				dragStartPointLeft.copy( currentWorldPositionLeft );
-				dragStartPointRight.copy( currentWorldPositionRight );
-			}
-
-			function onTriggerDown (event) {
-				var target = event.target;
-				var left = target === controller1;
-				if (left) {
-				  dragging.left = true;
-				} else {
-				  dragging.right = true;
-				}
-
-				dragStartPointLeft.setFromMatrixPosition(controller1.matrixWorld);
-				dragStartPointRight.setFromMatrixPosition(controller2.matrixWorld);
-			}
-
-			function onTriggerUp (event) {
-				var left = event.target === controller1;
-				if (left) {
-				  dragging.left = false;
-				} else {
-				  dragging.right = false;
-				}
 			}
 
 		</script>
